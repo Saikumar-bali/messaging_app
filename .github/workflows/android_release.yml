@@ -29,12 +29,6 @@ jobs:
           distribution: 'zulu'
           java-version: '17'
 
-      - name: Create Assets Directory
-        run: mkdir -p android/app/src/main/assets
-
-      - name: Build React Native Bundle
-        run: npx react-native bundle --platform android --dev false --entry-file index.js --bundle-output android/app/src/main/assets/index.android.bundle --assets-dest android/app/src/main/res
-
       - name: Setup Gradle
         uses: gradle/actions/setup-gradle@v3
 
@@ -42,8 +36,8 @@ jobs:
         run: chmod +x android/gradlew
 
       - name: Build Release APK
-        # We use -x bundleReleaseJsAndAssets to skip the duplicate bundling since we did it manually
-        run: cd android && ./gradlew assembleRelease -x bundleReleaseJsAndAssets
+        # Simple assembleRelease is best, the React Native Gradle Plugin handles the bundling
+        run: cd android && ./gradlew assembleRelease
 
       - name: Upload Optimized APKs
         uses: actions/upload-artifact@v4
