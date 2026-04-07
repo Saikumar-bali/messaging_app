@@ -1,97 +1,63 @@
-This is a new [**React Native**](https://reactnative.dev) project, bootstrapped using [`@react-native-community/cli`](https://github.com/react-native-community/cli).
+# SMS Interceptor & Blocker (React Native)
 
-# Getting Started
+This app allows you to intercept, forward, and instantly delete incoming SMS messages. It works by setting the app as the **Default SMS Application**, which grants it the necessary permissions on Android 10+.
 
-> **Note**: Make sure you have completed the [Set Up Your Environment](https://reactnative.dev/docs/set-up-your-environment) guide before proceeding.
+## Features
+- **Instant Deletion**: Incoming messages are deleted from the device before notifications appear.
+- **OTP Filtering**: Option to only block messages containing security keywords (OTP, code, etc.).
+- **API Forwarding**: Forward message content to a custom API endpoint before deletion.
+- **Modern Android Support**: Compatible with Android 10, 11, 12, 13, and 14.
 
-## Step 1: Start Metro
+## Setup Instructions
 
-First, you will need to run **Metro**, the JavaScript build tool for React Native.
+### 1. Prerequisites
+- React Native development environment.
+- Android device or emulator (Android 10+ recommended).
 
-To start the Metro dev server, run the following command from the root of your React Native project:
-
-```sh
-# Using npm
-npm start
-
-# OR using Yarn
-yarn start
+### 2. Installation
+```bash
+npm install
+npm install @react-navigation/native @react-navigation/stack react-native-screens react-native-safe-area-context react-native-gesture-handler @react-native-masked-view/masked-view
 ```
 
-## Step 2: Build and run your app
-
-With Metro running, open a new terminal window/pane from the root of your React Native project, and use one of the following commands to build and run your Android or iOS app:
-
-### Android
-
-```sh
-# Using npm
-npm run android
-
-# OR using Yarn
-yarn android
+### 3. Build and Run
+```bash
+npx react-native run-android
 ```
 
-### iOS
+### 4. Critical Configuration (MUST DO)
+For the app to work correctly, you must perform these steps:
 
-For iOS, remember to install CocoaPods dependencies (this only needs to be run on first clone or after updating native deps).
+#### A. Set as Default SMS App
+1. Open the app.
+2. Tap **"Set as Default SMS App"**.
+3. Select this app in the system dialog and confirm.
+*If this fails, go to: Settings > Apps > Default Apps > SMS App.*
 
-The first time you create a new project, run the Ruby bundler to install CocoaPods itself:
+#### B. Disable RCS Chat
+Modern "Chat features" (RCS) bypass standard SMS broadcasts. You must disable them:
+1. Open the original **Google Messages** app.
+2. Tap your profile icon > **Messages settings**.
+3. Tap **RCS chats**.
+4. Turn **OFF** "Turn on RCS chats".
 
-```sh
-bundle install
-```
+#### C. Grant Permissions
+- Tap **"Request Permissions"** in the app to ensure `RECEIVE_SMS` and `READ_SMS` are granted.
 
-Then, and every time you update your native dependencies, run:
+## How it Works
+1. When an SMS arrives, the system sends an `SMS_DELIVER` broadcast to the **default** SMS app.
+2. `SmsReceiver.kt` intercepts this broadcast.
+3. It checks the app settings (stored in `SharedPreferences`).
+4. If blocking is enabled:
+   - It checks if the message is an OTP (if "OTP Only" is enabled).
+   - It forwards the data to your configured URL (if any).
+   - It queries the `content://sms/` provider and deletes the message by ID.
 
-```sh
-bundle exec pod install
-```
+## Testing
+1. Enable **"Enable Blocking"** in the app.
+2. Send an SMS to the device from another phone.
+3. Monitor **Logcat** in Android Studio (filter: `SmsReceiver`) to see the interception process.
 
-For more information, please visit [CocoaPods Getting Started guide](https://guides.cocoapods.org/using/getting-started.html).
-
-```sh
-# Using npm
-npm run ios
-
-# OR using Yarn
-yarn ios
-```
-
-If everything is set up correctly, you should see your new app running in the Android Emulator, iOS Simulator, or your connected device.
-
-This is one way to run your app — you can also build it directly from Android Studio or Xcode.
-
-## Step 3: Modify your app
-
-Now that you have successfully run the app, let's make changes!
-
-Open `App.tsx` in your text editor of choice and make some changes. When you save, your app will automatically update and reflect these changes — this is powered by [Fast Refresh](https://reactnative.dev/docs/fast-refresh).
-
-When you want to forcefully reload, for example to reset the state of your app, you can perform a full reload:
-
-- **Android**: Press the <kbd>R</kbd> key twice or select **"Reload"** from the **Dev Menu**, accessed via <kbd>Ctrl</kbd> + <kbd>M</kbd> (Windows/Linux) or <kbd>Cmd ⌘</kbd> + <kbd>M</kbd> (macOS).
-- **iOS**: Press <kbd>R</kbd> in iOS Simulator.
-
-## Congratulations! :tada:
-
-You've successfully run and modified your React Native App. :partying_face:
-
-### Now what?
-
-- If you want to add this new React Native code to an existing application, check out the [Integration guide](https://reactnative.dev/docs/integration-with-existing-apps).
-- If you're curious to learn more about React Native, check out the [docs](https://reactnative.dev/docs/getting-started).
-
-# Troubleshooting
-
-If you're having issues getting the above steps to work, see the [Troubleshooting](https://reactnative.dev/docs/troubleshooting) page.
-
-# Learn More
-
-To learn more about React Native, take a look at the following resources:
-
-- [React Native Website](https://reactnative.dev) - learn more about React Native.
-- [Getting Started](https://reactnative.dev/docs/environment-setup) - an **overview** of React Native and how setup your environment.
-- [Learn the Basics](https://reactnative.dev/docs/getting-started) - a **guided tour** of the React Native **basics**.
-- [Blog](https://reactnative.dev/blog) - read the latest official React Native **Blog** posts.
-- [`@facebook/react-native`](https://github.com/facebook/react-native) - the Open Source; GitHub **repository** for React Native.
+## Limitations
+- **OTP Autofill**: The system's autofill service might briefly see the OTP before the app deletes it.
+- **Battery Optimization**: If the app is killed by the system, forwarding might fail. Disable battery optimization for this app in system settings for 100% reliability.

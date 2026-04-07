@@ -1,0 +1,6 @@
+D:\message_app\MessageApp\android\app\.cxx\Debug\53596j46\x86_64\rngesturehandler_codegen_autolinked_build\CMakeFiles\react_codegen_rngesturehandler_codegen.dir\react\renderer\components\rngesturehandler_codegen\ComponentDescriptors.cpp.o
+D:\message_app\MessageApp\android\app\.cxx\Debug\53596j46\x86_64\rngesturehandler_codegen_autolinked_build\CMakeFiles\react_codegen_rngesturehandler_codegen.dir\react\renderer\components\rngesturehandler_codegen\EventEmitters.cpp.o
+D:\message_app\MessageApp\android\app\.cxx\Debug\53596j46\x86_64\rngesturehandler_codegen_autolinked_build\CMakeFiles\react_codegen_rngesturehandler_codegen.dir\react\renderer\components\rngesturehandler_codegen\Props.cpp.o
+D:\message_app\MessageApp\android\app\.cxx\Debug\53596j46\x86_64\rngesturehandler_codegen_autolinked_build\CMakeFiles\react_codegen_rngesturehandler_codegen.dir\react\renderer\components\rngesturehandler_codegen\ShadowNodes.cpp.o
+D:\message_app\MessageApp\android\app\.cxx\Debug\53596j46\x86_64\rngesturehandler_codegen_autolinked_build\CMakeFiles\react_codegen_rngesturehandler_codegen.dir\react\renderer\components\rngesturehandler_codegen\States.cpp.o
+D:\message_app\MessageApp\android\app\.cxx\Debug\53596j46\x86_64\rngesturehandler_codegen_autolinked_build\CMakeFiles\react_codegen_rngesturehandler_codegen.dir\rngesturehandler_codegen-generated.cpp.o

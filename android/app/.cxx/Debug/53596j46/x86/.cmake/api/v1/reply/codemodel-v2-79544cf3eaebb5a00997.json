@@ -1,0 +1,138 @@
+{
+	"configurations" : 
+	[
+		{
+			"directories" : 
+			[
+				{
+					"build" : ".",
+					"childIndexes" : 
+					[
+						1,
+						2,
+						3
+					],
+					"jsonFile" : "directory-.-Debug-d0094a50bb2071803777.json",
+					"minimumCMakeVersion" : 
+					{
+						"string" : "3.13"
+					},
+					"projectIndex" : 0,
+					"source" : ".",
+					"targetIndexes" : 
+					[
+						0
+					]
+				},
+				{
+					"build" : "rngesturehandler_codegen_autolinked_build",
+					"jsonFile" : "directory-rngesturehandler_codegen_autolinked_build-Debug-4c0e9d5de2ab1d85d5cf.json",
+					"minimumCMakeVersion" : 
+					{
+						"string" : "3.13"
+					},
+					"parentIndex" : 0,
+					"projectIndex" : 0,
+					"source" : "D:/message_app/MessageApp/node_modules/react-native-gesture-handler/android/build/generated/source/codegen/jni",
+					"targetIndexes" : 
+					[
+						1
+					]
+				},
+				{
+					"build" : "safeareacontext_autolinked_build",
+					"jsonFile" : "directory-safeareacontext_autolinked_build-Debug-4e33bb5a9e03c14e44c1.json",
+					"minimumCMakeVersion" : 
+					{
+						"string" : "3.13"
+					},
+					"parentIndex" : 0,
+					"projectIndex" : 0,
+					"source" : "D:/message_app/MessageApp/node_modules/react-native-safe-area-context/android/src/main/jni",
+					"targetIndexes" : 
+					[
+						3
+					]
+				},
+				{
+					"build" : "rnscreens_autolinked_build",
+					"jsonFile" : "directory-rnscreens_autolinked_build-Debug-b7ce37a045892f3d6464.json",
+					"minimumCMakeVersion" : 
+					{
+						"string" : "3.13"
+					},
+					"parentIndex" : 0,
+					"projectIndex" : 0,
+					"source" : "D:/message_app/MessageApp/node_modules/react-native-screens/android/src/main/jni",
+					"targetIndexes" : 
+					[
+						2
+					]
+				}
+			],
+			"name" : "Debug",
+			"projects" : 
+			[
+				{
+					"directoryIndexes" : 
+					[
+						0,
+						1,
+						2,
+						3
+					],
+					"name" : "appmodules",
+					"targetIndexes" : 
+					[
+						0,
+						1,
+						2,
+						3
+					]
+				}
+			],
+			"targets" : 
+			[
+				{
+					"directoryIndex" : 0,
+					"id" : "appmodules::@6890427a1f51a3e7e1df",
+					"jsonFile" : "target-appmodules-Debug-9fe5b42cf766c2dcfe12.json",
+					"name" : "appmodules",
+					"projectIndex" : 0
+				},
+				{
+					"directoryIndex" : 1,
+					"id" : "react_codegen_rngesturehandler_codegen::@39f233abcd2c728bc6ec",
+					"jsonFile" : "target-react_codegen_rngesturehandler_codegen-Debug-a1e53db26676acc8d68a.json",
+					"name" : "react_codegen_rngesturehandler_codegen",
+					"projectIndex" : 0
+				},
+				{
+					"directoryIndex" : 3,
+					"id" : "react_codegen_rnscreens::@25bcbd507e98d3a854ad",
+					"jsonFile" : "target-react_codegen_rnscreens-Debug-1a18b77292428f91b25a.json",
+					"name" : "react_codegen_rnscreens",
+					"projectIndex" : 0
+				},
+				{
+					"directoryIndex" : 2,
+					"id" : "react_codegen_safeareacontext::@7984cd80db47aa7b952a",
+					"jsonFile" : "target-react_codegen_safeareacontext-Debug-474800638ea2d27a0c97.json",
+					"name" : "react_codegen_safeareacontext",
+					"projectIndex" : 0
+				}
+			]
+		}
+	],
+	"kind" : "codemodel",
+	"paths" : 
+	{
+		"build" : "D:/message_app/MessageApp/android/app/.cxx/Debug/53596j46/x86",
+		"source" : "D:/message_app/MessageApp/node_modules/react-native/ReactAndroid/cmake-utils/default-app-setup"
+	},
+	"version" : 
+	{
+		"major" : 2,
+		"minor" : 3
+	}
+}

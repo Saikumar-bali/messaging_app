@@ -1,0 +1,12 @@
+D:/message_app/MessageApp/android/app/.cxx/Debug/53596j46/arm64-v8a/CMakeFiles/appmodules.dir
+D:/message_app/MessageApp/android/app/.cxx/Debug/53596j46/arm64-v8a/CMakeFiles/edit_cache.dir
+D:/message_app/MessageApp/android/app/.cxx/Debug/53596j46/arm64-v8a/CMakeFiles/rebuild_cache.dir
+D:/message_app/MessageApp/android/app/.cxx/Debug/53596j46/arm64-v8a/rngesturehandler_codegen_autolinked_build/CMakeFiles/react_codegen_rngesturehandler_codegen.dir
+D:/message_app/MessageApp/android/app/.cxx/Debug/53596j46/arm64-v8a/rngesturehandler_codegen_autolinked_build/CMakeFiles/edit_cache.dir
+D:/message_app/MessageApp/android/app/.cxx/Debug/53596j46/arm64-v8a/rngesturehandler_codegen_autolinked_build/CMakeFiles/rebuild_cache.dir
+D:/message_app/MessageApp/android/app/.cxx/Debug/53596j46/arm64-v8a/safeareacontext_autolinked_build/CMakeFiles/react_codegen_safeareacontext.dir
+D:/message_app/MessageApp/android/app/.cxx/Debug/53596j46/arm64-v8a/safeareacontext_autolinked_build/CMakeFiles/edit_cache.dir
+D:/message_app/MessageApp/android/app/.cxx/Debug/53596j46/arm64-v8a/safeareacontext_autolinked_build/CMakeFiles/rebuild_cache.dir
+D:/message_app/MessageApp/android/app/.cxx/Debug/53596j46/arm64-v8a/rnscreens_autolinked_build/CMakeFiles/react_codegen_rnscreens.dir
+D:/message_app/MessageApp/android/app/.cxx/Debug/53596j46/arm64-v8a/rnscreens_autolinked_build/CMakeFiles/edit_cache.dir
+D:/message_app/MessageApp/android/app/.cxx/Debug/53596j46/arm64-v8a/rnscreens_autolinked_build/CMakeFiles/rebuild_cache.dir
