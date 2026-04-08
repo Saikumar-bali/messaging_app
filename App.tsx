@@ -1,4 +1,4 @@
-import React, {useEffect, useState, useRef, useCallback} from 'react';
+import React, {useEffect, useState, useRef, useCallback, memo, useMemo} from 'react';
 import {
   SafeAreaView,
   StyleSheet,
@@ -15,6 +15,7 @@ import {
   RefreshControl,
   DeviceEventEmitter,
   KeyboardAvoidingView,
+  InteractionManager,
 } from 'react-native';
 import {NavigationContainer} from '@react-navigation/native';
 import {createStackNavigator} from '@react-navigation/stack';
@@ -25,7 +26,7 @@ const Stack = createStackNavigator();
 
 // --- Components ---
 
-const ConversationItem = ({address, contactName, body, date, read, onPress, onLongPress}: any) => (
+const ConversationItem = memo(({address, contactName, body, date, read, onPress, onLongPress}: any) => (
   <TouchableOpacity 
     style={styles.messageItem} 
     onPress={onPress} 
@@ -41,9 +42,9 @@ const ConversationItem = ({address, contactName, body, date, read, onPress, onLo
     </View>
     <Text style={[styles.messageBody, read === 0 && styles.unreadBody]} numberOfLines={1}>{body}</Text>
   </TouchableOpacity>
-);
+));
 
-const ChatBubble = ({id, body, date, type, onLongPress}: any) => {
+const ChatBubble = memo(({id, body, date, type, onLongPress}: any) => {
   const isSent = type === 2;
   return (
     <View style={[styles.chatBubbleContainer, isSent ? styles.sentContainer : styles.receivedContainer]}>
@@ -57,7 +58,7 @@ const ChatBubble = ({id, body, date, type, onLongPress}: any) => {
       </TouchableOpacity>
     </View>
   );
-};
+});
 
 // --- Screens ---
 
@@ -90,13 +91,16 @@ const HomeScreen = ({navigation}: any) => {
   }, []);
 
   useEffect(() => {
+    // Fetch initial data
     fetchConversations();
     checkDefaultApp();
 
+    // Subscribe to new messages
     const subscription = DeviceEventEmitter.addListener('onNewMessage', () => {
       fetchConversations();
     });
     
+    // Header options
     navigation.setOptions({
       headerRight: () => (
         <TouchableOpacity 
@@ -111,14 +115,14 @@ const HomeScreen = ({navigation}: any) => {
     return () => subscription.remove();
   }, [navigation, fetchConversations, checkDefaultApp]);
 
-  const onRefresh = async () => {
+  const onRefresh = useCallback(async () => {
     setRefreshing(true);
     await fetchConversations();
     await checkDefaultApp();
     setRefreshing(false);
-  };
+  }, [fetchConversations, checkDefaultApp]);
 
-  const handleDeleteConversation = (address: string, name: string) => {
+  const handleDeleteConversation = useCallback((address: string, name: string) => {
     Alert.alert(
       'Delete Conversation',
       `Delete all messages from ${name || address}?`,
@@ -134,7 +138,20 @@ const HomeScreen = ({navigation}: any) => {
         },
       ]
     );
-  };
+  }, [fetchConversations]);
+
+  const renderItem = useCallback(({item}: any) => (
+    <ConversationItem 
+      {...item} 
+      onPress={() => navigation.navigate('MessageDetail', { 
+        address: item.address,
+        contactName: item.contactName 
+      })} 
+      onLongPress={() => handleDeleteConversation(item.address, item.contactName)}
+    />
+  ), [navigation, handleDeleteConversation]);
+
+  const memoizedConversations = useMemo(() => conversations, [conversations]);
 
   return (
     <SafeAreaView style={styles.container}>
@@ -147,24 +164,18 @@ const HomeScreen = ({navigation}: any) => {
         </View>
       )}
       <FlatList
-        data={conversations}
+        data={memoizedConversations}
         keyExtractor={(item: any) => item.id}
-        renderItem={({item}) => (
-          <ConversationItem 
-            {...item} 
-            onPress={() => navigation.navigate('MessageDetail', { 
-              address: item.address,
-              contactName: item.contactName 
-            })} 
-            onLongPress={() => handleDeleteConversation(item.address, item.contactName)}
-          />
-        )}
+        renderItem={renderItem}
         refreshControl={<RefreshControl refreshing={refreshing} onRefresh={onRefresh} />}
         ListEmptyComponent={
           <View style={styles.emptyContainer}>
             <Text style={styles.emptyText}>No conversations yet.</Text>
           </View>
         }
+        initialNumToRender={15}
+        maxToRenderPerBatch={10}
+        windowSize={5}
       />
     </SafeAreaView>
   );
@@ -197,7 +208,7 @@ const MessageDetailScreen = ({route, navigation}: any) => {
   useEffect(() => {
     const displayName = contactName || address;
     
-    // Custom Header to look like a real chat app
+    // Set static header options immediately
     navigation.setOptions({
       headerLeft: () => (
         <TouchableOpacity 
@@ -224,32 +235,38 @@ const MessageDetailScreen = ({route, navigation}: any) => {
       headerTintColor: '#000',
     });
 
-    loadHistory();
-    markAsRead();
+    // Defer heavy data loading until after transition for smoother feel
+    const task = InteractionManager.runAfterInteractions(() => {
+      loadHistory();
+      markAsRead();
+    });
 
     const subscription = DeviceEventEmitter.addListener('onNewMessage', () => {
       loadHistory();
       markAsRead();
     });
 
-    return () => subscription.remove();
+    return () => {
+      task.cancel();
+      subscription.remove();
+    };
   }, [address, contactName, navigation, loadHistory, markAsRead]);
 
-  const handleSend = async () => {
+  const handleSend = useCallback(async () => {
     if (!replyText.trim()) return;
     setSending(true);
     try {
       await SmsBlockModule.sendSms(address, replyText);
       setReplyText('');
-      loadHistory(); // Refresh immediately
+      loadHistory(); 
     } catch {
       Alert.alert('Error', 'Failed to send message');
     } finally {
       setSending(false);
     }
-  };
+  }, [address, replyText, loadHistory]);
 
-  const handleDeleteMessage = (id: string) => {
+  const handleDeleteMessage = useCallback((id: string) => {
     Alert.alert(
       'Delete Message',
       'Delete this message?',
@@ -265,7 +282,7 @@ const MessageDetailScreen = ({route, navigation}: any) => {
         },
       ]
     );
-  };
+  }, [loadHistory]);
 
   return (
     <SafeAreaView style={styles.container}>

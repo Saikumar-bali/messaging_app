@@ -21,6 +21,7 @@ class SmsBlockModule(reactContext: ReactApplicationContext) : ReactContextBaseJa
     }
 
     private val prefs = reactContext.getSharedPreferences("SmsBlockPrefs", Context.MODE_PRIVATE)
+    private val contactCache = mutableMapOf<String, String?>()
 
     @ReactMethod
     fun isDefaultSmsApp(promise: Promise) {
@@ -82,6 +83,8 @@ class SmsBlockModule(reactContext: ReactApplicationContext) : ReactContextBaseJa
 
     private fun getContactName(phoneNumber: String?): String? {
         if (phoneNumber == null) return null
+        if (contactCache.containsKey(phoneNumber)) return contactCache[phoneNumber]
+
         val uri = Uri.withAppendedPath(ContactsContract.PhoneLookup.CONTENT_FILTER_URI, Uri.encode(phoneNumber))
         val projection = arrayOf(ContactsContract.PhoneLookup.DISPLAY_NAME)
         var contactName: String? = null
@@ -96,12 +99,15 @@ class SmsBlockModule(reactContext: ReactApplicationContext) : ReactContextBaseJa
         } catch (e: Exception) {
             // Ignore contact resolution errors
         }
+        contactCache[phoneNumber] = contactName
         return contactName
     }
 
     @ReactMethod
     fun getMessages(promise: Promise) {
-        fetchMessagesFallback(promise) // Use fallback as primary for better grouping and unread status
+        // Clear cache periodically or on manual refresh if needed. 
+        // For now, let's keep it during the app session for speed.
+        fetchMessagesFallback(promise) 
     }
 
     private fun fetchMessagesFallback(promise: Promise) {
@@ -109,15 +115,25 @@ class SmsBlockModule(reactContext: ReactApplicationContext) : ReactContextBaseJa
         val seenAddresses = mutableSetOf<String>()
         try {
             val uri = Uri.parse("content://sms/")
-            // We fetch all messages and pick the first one (latest) for each address
-            val cursor = reactApplicationContext.contentResolver.query(uri, null, null, null, "date DESC")
+            val projection = arrayOf("_id", "thread_id", "address", "body", "date", "read")
+            
+            // We fetch messages. Scanning too many might be slow, but we need grouping.
+            // limit to last 500 messages to find recent conversations quickly.
+            val cursor = reactApplicationContext.contentResolver.query(
+                uri, 
+                projection, 
+                null, 
+                null, 
+                "date DESC LIMIT 500"
+            )
+            
             if (cursor != null) {
+                val indexId = cursor.getColumnIndex("_id")
+                val indexThreadId = cursor.getColumnIndex("thread_id")
                 val indexAddress = cursor.getColumnIndex("address")
                 val indexBody = cursor.getColumnIndex("body")
                 val indexDate = cursor.getColumnIndex("date")
-                val indexId = cursor.getColumnIndex("_id")
                 val indexRead = cursor.getColumnIndex("read")
-                val indexThreadId = cursor.getColumnIndex("thread_id")
                 
                 while (cursor.moveToNext()) {
                     val address = cursor.getString(indexAddress) ?: "Unknown"
@@ -132,6 +148,9 @@ class SmsBlockModule(reactContext: ReactApplicationContext) : ReactContextBaseJa
                         map.putString("contactName", getContactName(address))
                         messages.pushMap(map)
                         seenAddresses.add(address)
+                        
+                        // Stop if we have enough conversations for the main list (e.g., 50)
+                        if (seenAddresses.size >= 50) break
                     }
                 }
                 cursor.close()
@@ -147,9 +166,10 @@ class SmsBlockModule(reactContext: ReactApplicationContext) : ReactContextBaseJa
         val history = WritableNativeArray()
         try {
             val uri = Uri.parse("content://sms/")
+            val projection = arrayOf("_id", "body", "date", "type")
             val cursor = reactApplicationContext.contentResolver.query(
                 uri, 
-                null, 
+                projection, 
                 "address=?", 
                 arrayOf(address), 
                 "date ASC"
@@ -159,7 +179,7 @@ class SmsBlockModule(reactContext: ReactApplicationContext) : ReactContextBaseJa
                 val indexId = cursor.getColumnIndex("_id")
                 val indexBody = cursor.getColumnIndex("body")
                 val indexDate = cursor.getColumnIndex("date")
-                val indexType = cursor.getColumnIndex("type") // 1 = Inbox, 2 = Sent
+                val indexType = cursor.getColumnIndex("type")
 
                 while (cursor.moveToNext()) {
                     val map = WritableNativeMap()
@@ -188,7 +208,6 @@ class SmsBlockModule(reactContext: ReactApplicationContext) : ReactContextBaseJa
             
             smsManager.sendTextMessage(address, null, message, null, null)
             
-            // Also save the sent message to the system "Sent" folder
             val values = android.content.ContentValues()
             values.put("address", address)
             values.put("body", message)
