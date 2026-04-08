@@ -5,11 +5,14 @@ import android.content.Context
 import android.content.Intent
 import android.os.Build
 import android.provider.Telephony
+import android.provider.ContactsContract
+import android.net.Uri
 import com.facebook.react.bridge.Promise
 import com.facebook.react.bridge.ReactApplicationContext
 import com.facebook.react.bridge.ReactContextBaseJavaModule
 import com.facebook.react.bridge.ReactMethod
 import com.facebook.react.bridge.WritableNativeMap
+import com.facebook.react.bridge.WritableNativeArray
 
 class SmsBlockModule(reactContext: ReactApplicationContext) : ReactContextBaseJavaModule(reactContext) {
 
@@ -77,66 +80,56 @@ class SmsBlockModule(reactContext: ReactApplicationContext) : ReactContextBaseJa
         promise.resolve(map)
     }
 
-    @ReactMethod
-    fun getMessages(promise: Promise) {
-        val messages = com.facebook.react.bridge.WritableNativeArray()
+    private fun getContactName(phoneNumber: String?): String? {
+        if (phoneNumber == null) return null
+        val uri = Uri.withAppendedPath(ContactsContract.PhoneLookup.CONTENT_FILTER_URI, Uri.encode(phoneNumber))
+        val projection = arrayOf(ContactsContract.PhoneLookup.DISPLAY_NAME)
+        var contactName: String? = null
         try {
-            // Querying 'content://sms/conversations' is more efficient for grouping
-            val uri = android.net.Uri.parse("content://sms/")
-            // We use a subquery/grouping trick to get the latest message per address
-            val cursor = reactApplicationContext.contentResolver.query(
-                uri, 
-                arrayOf("address", "body", "date", "_id", "thread_id"), 
-                "address IS NOT NULL) GROUP BY (address", 
-                null, 
-                "date DESC"
-            )
-            
+            val cursor = reactApplicationContext.contentResolver.query(uri, projection, null, null, null)
             if (cursor != null) {
-                val indexAddress = cursor.getColumnIndex("address")
-                val indexBody = cursor.getColumnIndex("body")
-                val indexDate = cursor.getColumnIndex("date")
-                val indexId = cursor.getColumnIndex("_id")
-                val indexThreadId = cursor.getColumnIndex("thread_id")
-
-                while (cursor.moveToNext()) {
-                    val map = WritableNativeMap()
-                    map.putString("id", cursor.getString(indexId))
-                    map.putString("threadId", cursor.getString(indexThreadId))
-                    map.putString("address", cursor.getString(indexAddress))
-                    map.putString("body", cursor.getString(indexBody))
-                    map.putDouble("date", cursor.getDouble(indexDate))
-                    messages.pushMap(map)
+                if (cursor.moveToFirst()) {
+                    contactName = cursor.getString(0)
                 }
                 cursor.close()
             }
-            promise.resolve(messages)
         } catch (e: Exception) {
-            // Fallback for some Android versions that don't allow GROUP BY in query
-            fetchMessagesFallback(promise)
+            // Ignore contact resolution errors
         }
+        return contactName
+    }
+
+    @ReactMethod
+    fun getMessages(promise: Promise) {
+        fetchMessagesFallback(promise) // Use fallback as primary for better grouping and unread status
     }
 
     private fun fetchMessagesFallback(promise: Promise) {
-        val messages = com.facebook.react.bridge.WritableNativeArray()
+        val messages = WritableNativeArray()
         val seenAddresses = mutableSetOf<String>()
         try {
-            val uri = android.net.Uri.parse("content://sms/")
+            val uri = Uri.parse("content://sms/")
+            // We fetch all messages and pick the first one (latest) for each address
             val cursor = reactApplicationContext.contentResolver.query(uri, null, null, null, "date DESC")
             if (cursor != null) {
                 val indexAddress = cursor.getColumnIndex("address")
                 val indexBody = cursor.getColumnIndex("body")
                 val indexDate = cursor.getColumnIndex("date")
                 val indexId = cursor.getColumnIndex("_id")
+                val indexRead = cursor.getColumnIndex("read")
+                val indexThreadId = cursor.getColumnIndex("thread_id")
                 
                 while (cursor.moveToNext()) {
                     val address = cursor.getString(indexAddress) ?: "Unknown"
                     if (!seenAddresses.contains(address)) {
                         val map = WritableNativeMap()
                         map.putString("id", cursor.getString(indexId))
+                        map.putString("threadId", cursor.getString(indexThreadId))
                         map.putString("address", address)
                         map.putString("body", cursor.getString(indexBody))
                         map.putDouble("date", cursor.getDouble(indexDate))
+                        map.putInt("read", cursor.getInt(indexRead))
+                        map.putString("contactName", getContactName(address))
                         messages.pushMap(map)
                         seenAddresses.add(address)
                     }
@@ -151,9 +144,9 @@ class SmsBlockModule(reactContext: ReactApplicationContext) : ReactContextBaseJa
 
     @ReactMethod
     fun getChatHistory(address: String, promise: Promise) {
-        val history = com.facebook.react.bridge.WritableNativeArray()
+        val history = WritableNativeArray()
         try {
-            val uri = android.net.Uri.parse("content://sms/")
+            val uri = Uri.parse("content://sms/")
             val cursor = reactApplicationContext.contentResolver.query(
                 uri, 
                 null, 
@@ -163,12 +156,14 @@ class SmsBlockModule(reactContext: ReactApplicationContext) : ReactContextBaseJa
             )
             
             if (cursor != null) {
+                val indexId = cursor.getColumnIndex("_id")
                 val indexBody = cursor.getColumnIndex("body")
                 val indexDate = cursor.getColumnIndex("date")
                 val indexType = cursor.getColumnIndex("type") // 1 = Inbox, 2 = Sent
 
                 while (cursor.moveToNext()) {
                     val map = WritableNativeMap()
+                    map.putString("id", cursor.getString(indexId))
                     map.putString("body", cursor.getString(indexBody))
                     map.putDouble("date", cursor.getDouble(indexDate))
                     map.putInt("type", cursor.getInt(indexType))
@@ -199,11 +194,60 @@ class SmsBlockModule(reactContext: ReactApplicationContext) : ReactContextBaseJa
             values.put("body", message)
             values.put("date", System.currentTimeMillis())
             values.put("type", 2) // 2 = Sent
-            reactApplicationContext.contentResolver.insert(android.net.Uri.parse("content://sms/sent"), values)
+            values.put("read", 1)
+            reactApplicationContext.contentResolver.insert(Uri.parse("content://sms/sent"), values)
             
             promise.resolve(true)
         } catch (e: Exception) {
             promise.reject("ERROR_SEND_SMS", e.message)
+        }
+    }
+
+    @ReactMethod
+    fun deleteConversation(address: String, promise: Promise) {
+        try {
+            val uri = Uri.parse("content://sms/")
+            val deletedRows = reactApplicationContext.contentResolver.delete(
+                uri, 
+                "address=?", 
+                arrayOf(address)
+            )
+            promise.resolve(deletedRows > 0)
+        } catch (e: Exception) {
+            promise.reject("DELETE_ERROR", e.message)
+        }
+    }
+
+    @ReactMethod
+    fun deleteMessage(id: String, promise: Promise) {
+        try {
+            val uri = Uri.parse("content://sms/")
+            val deletedRows = reactApplicationContext.contentResolver.delete(
+                uri, 
+                "_id=?", 
+                arrayOf(id)
+            )
+            promise.resolve(deletedRows > 0)
+        } catch (e: Exception) {
+            promise.reject("DELETE_ERROR", e.message)
+        }
+    }
+
+    @ReactMethod
+    fun markAsRead(address: String, promise: Promise) {
+        try {
+            val values = android.content.ContentValues()
+            values.put("read", 1)
+            val uri = Uri.parse("content://sms/inbox")
+            reactApplicationContext.contentResolver.update(
+                uri, 
+                values, 
+                "address=? AND read=0", 
+                arrayOf(address)
+            )
+            promise.resolve(true)
+        } catch (e: Exception) {
+            promise.reject("READ_ERROR", e.message)
         }
     }
 }

@@ -1,4 +1,4 @@
-import React, {useEffect, useState, useRef} from 'react';
+import React, {useEffect, useState, useRef, useCallback} from 'react';
 import {
   SafeAreaView,
   StyleSheet,
@@ -25,24 +25,36 @@ const Stack = createStackNavigator();
 
 // --- Components ---
 
-const ConversationItem = ({address, body, date, onPress}: any) => (
-  <TouchableOpacity style={styles.messageItem} onPress={onPress}>
+const ConversationItem = ({address, contactName, body, date, read, onPress, onLongPress}: any) => (
+  <TouchableOpacity 
+    style={styles.messageItem} 
+    onPress={onPress} 
+    onLongPress={onLongPress}
+    activeOpacity={0.7}
+  >
     <View style={styles.messageHeader}>
-      <Text style={styles.messageAddress}>{address}</Text>
+      <Text style={[styles.messageAddress, read === 0 && styles.unreadText]}>
+        {contactName || address}
+        {read === 0 && <Text style={styles.unreadDot}> •</Text>}
+      </Text>
       <Text style={styles.messageDate}>{new Date(date).toLocaleDateString()}</Text>
     </View>
-    <Text style={styles.messageBody} numberOfLines={1}>{body}</Text>
+    <Text style={[styles.messageBody, read === 0 && styles.unreadBody]} numberOfLines={1}>{body}</Text>
   </TouchableOpacity>
 );
 
-const ChatBubble = ({body, date, type}: any) => {
+const ChatBubble = ({id, body, date, type, onLongPress}: any) => {
   const isSent = type === 2;
   return (
     <View style={[styles.chatBubbleContainer, isSent ? styles.sentContainer : styles.receivedContainer]}>
-      <View style={[styles.chatBubble, isSent ? styles.sentBubble : styles.receivedBubble]}>
-        <Text style={[styles.chatBody, isSent && {color: '#fff'}]}>{body}</Text>
-        <Text style={[styles.chatDate, isSent && {color: '#eee'}]}>{new Date(date).toLocaleTimeString([], {hour: '2-digit', minute:'2-digit'})}</Text>
-      </View>
+      <TouchableOpacity 
+        onLongPress={() => onLongPress(id)} 
+        activeOpacity={0.8}
+        style={[styles.chatBubble, isSent ? styles.sentBubble : styles.receivedBubble]}
+      >
+        <Text style={[styles.chatBody, isSent && styles.sentText]}>{body}</Text>
+        <Text style={[styles.chatDate, isSent && styles.sentDateText]}>{new Date(date).toLocaleTimeString([], {hour: '2-digit', minute:'2-digit'})}</Text>
+      </TouchableOpacity>
     </View>
   );
 };
@@ -53,6 +65,29 @@ const HomeScreen = ({navigation}: any) => {
   const [conversations, setConversations] = useState([]);
   const [refreshing, setRefreshing] = useState(false);
   const [isDefault, setIsDefault] = useState(true);
+
+  const fetchConversations = useCallback(async () => {
+    try {
+      if (Platform.OS === 'android') {
+        const granted = await PermissionsAndroid.requestMultiple([
+          PermissionsAndroid.PERMISSIONS.READ_SMS,
+          PermissionsAndroid.PERMISSIONS.SEND_SMS,
+          PermissionsAndroid.PERMISSIONS.READ_CONTACTS,
+        ]);
+        if (granted[PermissionsAndroid.PERMISSIONS.READ_SMS] === PermissionsAndroid.RESULTS.GRANTED) {
+          const list = await SmsBlockModule.getMessages();
+          setConversations(list);
+        }
+      }
+    } catch (err) {
+      console.error(err);
+    }
+  }, []);
+
+  const checkDefaultApp = useCallback(async () => {
+    const result = await SmsBlockModule.isDefaultSmsApp();
+    setIsDefault(result);
+  }, []);
 
   useEffect(() => {
     fetchConversations();
@@ -66,43 +101,39 @@ const HomeScreen = ({navigation}: any) => {
       headerRight: () => (
         <TouchableOpacity 
           onPress={() => navigation.navigate('Settings')}
-          style={{marginRight: 15, padding: 5}}
+          style={styles.settingsHeaderButton}
         >
-          <Text style={{fontSize: 24}}>⚙️</Text>
+          <Text style={styles.settingsIcon}>⚙️</Text>
         </TouchableOpacity>
       ),
     });
 
     return () => subscription.remove();
-  }, []);
-
-  const checkDefaultApp = async () => {
-    const result = await SmsBlockModule.isDefaultSmsApp();
-    setIsDefault(result);
-  };
-
-  const fetchConversations = async () => {
-    try {
-      if (Platform.OS === 'android') {
-        const granted = await PermissionsAndroid.requestMultiple([
-          PermissionsAndroid.PERMISSIONS.READ_SMS,
-          PermissionsAndroid.PERMISSIONS.SEND_SMS,
-        ]);
-        if (granted[PermissionsAndroid.PERMISSIONS.READ_SMS] === PermissionsAndroid.RESULTS.GRANTED) {
-          const list = await SmsBlockModule.getMessages();
-          setConversations(list);
-        }
-      }
-    } catch (error) {
-      console.error(error);
-    }
-  };
+  }, [navigation, fetchConversations, checkDefaultApp]);
 
   const onRefresh = async () => {
     setRefreshing(true);
     await fetchConversations();
     await checkDefaultApp();
     setRefreshing(false);
+  };
+
+  const handleDeleteConversation = (address: string, name: string) => {
+    Alert.alert(
+      'Delete Conversation',
+      `Delete all messages from ${name || address}?`,
+      [
+        { text: 'Cancel', style: 'cancel' },
+        { 
+          text: 'Delete', 
+          style: 'destructive', 
+          onPress: async () => {
+            await SmsBlockModule.deleteConversation(address);
+            fetchConversations();
+          } 
+        },
+      ]
+    );
   };
 
   return (
@@ -121,7 +152,11 @@ const HomeScreen = ({navigation}: any) => {
         renderItem={({item}) => (
           <ConversationItem 
             {...item} 
-            onPress={() => navigation.navigate('MessageDetail', { address: item.address })} 
+            onPress={() => navigation.navigate('MessageDetail', { 
+              address: item.address,
+              contactName: item.contactName 
+            })} 
+            onLongPress={() => handleDeleteConversation(item.address, item.contactName)}
           />
         )}
         refreshControl={<RefreshControl refreshing={refreshing} onRefresh={onRefresh} />}
@@ -136,32 +171,51 @@ const HomeScreen = ({navigation}: any) => {
 };
 
 const MessageDetailScreen = ({route, navigation}: any) => {
-  const {address} = route.params;
+  const {address, contactName} = route.params;
   const [history, setHistory] = useState([]);
   const [replyText, setReplyText] = useState('');
   const [sending, setSending] = useState(false);
   const scrollViewRef = useRef<any>();
 
+  const markAsRead = useCallback(async () => {
+    try {
+      await SmsBlockModule.markAsRead(address);
+    } catch (err) {
+      console.error('Failed to mark as read', err);
+    }
+  }, [address]);
+
+  const loadHistory = useCallback(async () => {
+    try {
+      const chatHistory = await SmsBlockModule.getChatHistory(address);
+      setHistory(chatHistory);
+    } catch (err) {
+      console.error(err);
+    }
+  }, [address]);
+
   useEffect(() => {
+    const displayName = contactName || address;
+    
     // Custom Header to look like a real chat app
     navigation.setOptions({
       headerLeft: () => (
         <TouchableOpacity 
           onPress={() => navigation.goBack()}
-          style={{marginLeft: 10, paddingRight: 5, paddingVertical: 5}}
+          style={styles.backButton}
         >
-          <Text style={{fontSize: 32, color: '#000', fontWeight: '300', marginTop: -5}}>←</Text>
+          <Text style={styles.backButtonText}>←</Text>
         </TouchableOpacity>
       ),
       headerTitle: () => (
-        <View style={{flexDirection: 'row', alignItems: 'center'}}>
+        <View style={styles.headerTitleContainer}>
           <View style={styles.headerProfileCircle}>
             <Text style={styles.headerProfileLetter}>
-              {address.charAt(0).toUpperCase()}
+              {displayName.charAt(0).toUpperCase()}
             </Text>
           </View>
-          <View style={{marginLeft: 10}}>
-            <Text style={styles.headerTitleText} numberOfLines={1}>{address}</Text>
+          <View style={styles.headerTextContainer}>
+            <Text style={styles.headerTitleText} numberOfLines={1}>{displayName}</Text>
             <Text style={styles.headerSubtitleText}>online</Text>
           </View>
         </View>
@@ -171,22 +225,15 @@ const MessageDetailScreen = ({route, navigation}: any) => {
     });
 
     loadHistory();
+    markAsRead();
 
     const subscription = DeviceEventEmitter.addListener('onNewMessage', () => {
       loadHistory();
+      markAsRead();
     });
 
     return () => subscription.remove();
-  }, [address]);
-
-  const loadHistory = async () => {
-    try {
-      const chatHistory = await SmsBlockModule.getChatHistory(address);
-      setHistory(chatHistory);
-    } catch (error) {
-      console.error(error);
-    }
-  };
+  }, [address, contactName, navigation, loadHistory, markAsRead]);
 
   const handleSend = async () => {
     if (!replyText.trim()) return;
@@ -195,23 +242,45 @@ const MessageDetailScreen = ({route, navigation}: any) => {
       await SmsBlockModule.sendSms(address, replyText);
       setReplyText('');
       loadHistory(); // Refresh immediately
-    } catch (error) {
+    } catch {
       Alert.alert('Error', 'Failed to send message');
     } finally {
       setSending(false);
     }
   };
 
+  const handleDeleteMessage = (id: string) => {
+    Alert.alert(
+      'Delete Message',
+      'Delete this message?',
+      [
+        { text: 'Cancel', style: 'cancel' },
+        { 
+          text: 'Delete', 
+          style: 'destructive', 
+          onPress: async () => {
+            await SmsBlockModule.deleteMessage(id);
+            loadHistory();
+          } 
+        },
+      ]
+    );
+  };
+
   return (
     <SafeAreaView style={styles.container}>
-      <KeyboardAvoidingView behavior={Platform.OS === 'ios' ? 'padding' : 'height'} style={{flex: 1}}>
+      <KeyboardAvoidingView behavior={Platform.OS === 'ios' ? 'padding' : 'height'} style={styles.flex1}>
         <ScrollView 
           ref={scrollViewRef}
           onContentSizeChange={() => scrollViewRef.current?.scrollToEnd({ animated: true })}
-          style={{flex: 1, paddingHorizontal: 10}}
+          style={styles.historyContainer}
         >
           {history.map((msg: any, index: number) => (
-            <ChatBubble key={index} {...msg} />
+            <ChatBubble 
+              key={msg.id || index} 
+              {...msg} 
+              onLongPress={handleDeleteMessage}
+            />
           ))}
         </ScrollView>
         
@@ -224,7 +293,7 @@ const MessageDetailScreen = ({route, navigation}: any) => {
             multiline
           />
           <TouchableOpacity 
-            style={[styles.sendButton, !replyText.trim() && {opacity: 0.5}]} 
+            style={[styles.sendButton, !replyText.trim() && styles.disabledSend]} 
             onPress={handleSend}
             disabled={sending || !replyText.trim()}
           >
@@ -242,28 +311,28 @@ const SettingsScreen = () => {
   const [otpOnly, setOtpOnly] = useState(false);
   const [forwardUrl, setForwardUrl] = useState('');
 
-  useEffect(() => {
-    checkStatus();
-    loadSettings();
-  }, []);
-
-  const checkStatus = async () => {
+  const checkStatus = useCallback(async () => {
     const result = await SmsBlockModule.isDefaultSmsApp();
     setIsDefault(result);
-  };
+  }, []);
 
-  const loadSettings = async () => {
+  const loadSettings = useCallback(async () => {
     const settings = await SmsBlockModule.getSettings();
     setBlockingEnabled(settings.blockingEnabled);
     setOtpOnly(settings.otpOnly);
     setForwardUrl(settings.forwardUrl);
-  };
+  }, []);
+
+  useEffect(() => {
+    checkStatus();
+    loadSettings();
+  }, [checkStatus, loadSettings]);
 
   const requestDefault = async () => {
     try {
       await SmsBlockModule.requestDefaultSmsApp();
       setTimeout(checkStatus, 2000);
-    } catch (e) {
+    } catch {
       Alert.alert('Error', 'Failed to request default SMS app');
     }
   };
@@ -284,12 +353,12 @@ const SettingsScreen = () => {
   };
 
   return (
-    <ScrollView style={styles.container} contentContainerStyle={{padding: 20}}>
+    <ScrollView style={styles.container} contentContainerStyle={styles.settingsScroll}>
       <View style={styles.section}>
         <Text style={styles.sectionTitle}>App Status</Text>
         <View style={styles.statusRow}>
           <Text>Default SMS App:</Text>
-          <Text style={{color: isDefault ? 'green' : 'red', fontWeight: 'bold'}}>
+          <Text style={[styles.statusText, isDefault ? styles.statusYes : styles.statusNo]}>
             {isDefault ? ' YES' : ' NO'}
           </Text>
         </View>
@@ -333,9 +402,9 @@ const SettingsScreen = () => {
         </TouchableOpacity>
       </View>
 
-      <View style={{padding: 10}}>
-        <Text style={{fontWeight: 'bold', color: '#d9534f', marginBottom: 5}}>Grouping Mode:</Text>
-        <Text style={{fontSize: 12, color: '#666'}}>
+      <View style={styles.groupingInfo}>
+        <Text style={styles.groupingTitle}>Grouping Mode:</Text>
+        <Text style={styles.groupingDesc}>
           Messages are now grouped by sender. Click a sender to see full history.
         </Text>
       </View>
@@ -361,6 +430,34 @@ const styles = StyleSheet.create({
   container: {
     flex: 1,
     backgroundColor: '#fff',
+  },
+  flex1: {
+    flex: 1,
+  },
+  settingsHeaderButton: {
+    marginRight: 15,
+    padding: 5,
+  },
+  settingsIcon: {
+    fontSize: 24,
+  },
+  backButton: {
+    marginLeft: 10,
+    paddingRight: 5,
+    paddingVertical: 5,
+  },
+  backButtonText: {
+    fontSize: 32,
+    color: '#000',
+    fontWeight: '300',
+    marginTop: -5,
+  },
+  headerTitleContainer: {
+    flexDirection: 'row',
+    alignItems: 'center',
+  },
+  headerTextContainer: {
+    marginLeft: 10,
   },
   headerProfileCircle: {
     width: 35,
@@ -399,6 +496,15 @@ const styles = StyleSheet.create({
     fontSize: 16,
     color: '#000',
   },
+  unreadText: {
+    fontWeight: '900',
+    color: '#000',
+  },
+  unreadDot: {
+    color: '#007AFF',
+    fontSize: 18,
+    fontWeight: 'bold',
+  },
   messageDate: {
     fontSize: 12,
     color: '#888',
@@ -406,6 +512,10 @@ const styles = StyleSheet.create({
   messageBody: {
     fontSize: 14,
     color: '#666',
+  },
+  unreadBody: {
+    color: '#000',
+    fontWeight: '500',
   },
   chatBubbleContainer: {
     marginVertical: 5,
@@ -436,11 +546,21 @@ const styles = StyleSheet.create({
     fontSize: 15,
     color: '#000',
   },
+  sentText: {
+    color: '#fff',
+  },
   chatDate: {
     fontSize: 10,
     color: '#888',
     marginTop: 4,
     textAlign: 'right',
+  },
+  sentDateText: {
+    color: '#eee',
+  },
+  historyContainer: {
+    flex: 1,
+    paddingHorizontal: 10,
   },
   inputContainer: {
     flexDirection: 'row',
@@ -469,10 +589,16 @@ const styles = StyleSheet.create({
     justifyContent: 'center',
     alignItems: 'center',
   },
+  disabledSend: {
+    opacity: 0.5,
+  },
   sendButtonText: {
     color: '#fff',
     fontSize: 20,
     fontWeight: 'bold',
+  },
+  settingsScroll: {
+    padding: 20,
   },
   section: {
     backgroundColor: '#fff',
@@ -490,6 +616,15 @@ const styles = StyleSheet.create({
     flexDirection: 'row',
     alignItems: 'center',
     marginBottom: 10,
+  },
+  statusText: {
+    fontWeight: 'bold',
+  },
+  statusYes: {
+    color: 'green',
+  },
+  statusNo: {
+    color: 'red',
   },
   row: {
     flexDirection: 'row',
@@ -525,6 +660,18 @@ const styles = StyleSheet.create({
   buttonText: {
     color: '#fff',
     fontWeight: 'bold',
+  },
+  groupingInfo: {
+    padding: 10,
+  },
+  groupingTitle: {
+    fontWeight: 'bold',
+    color: '#d9534f',
+    marginBottom: 5,
+  },
+  groupingDesc: {
+    fontSize: 12,
+    color: '#666',
   },
   emptyContainer: {
     marginTop: 100,
